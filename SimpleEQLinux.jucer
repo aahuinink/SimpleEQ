@@ -34,7 +34,7 @@
   <EXPORTFORMATS>
     <LINUX_MAKE targetFolder="Builds/LinuxMakefile">
       <CONFIGURATIONS>
-        <CONFIGURATION isDebug="1" name="Debug" targetName="SimpleEQLinux"/>
+        <CONFIGURATION isDebug="1" name="Debug" targetName="SimpleEQLinux" headerPath="Include"/>
         <CONFIGURATION isDebug="0" name="Release" targetName="SimpleEQLinux"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
