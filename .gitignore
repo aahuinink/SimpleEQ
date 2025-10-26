@@ -1,3 +1,4 @@
-Builds/*
-!Builds/LinuxMakefile
+Builds/LinuxMakefile/**/
+!Builds/LinuxMakefile/make_helpers/
+Builds/VisualStudio2022/**/
 JuceLibraryCode/

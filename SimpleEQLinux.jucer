@@ -3,6 +3,9 @@
 <JUCERPROJECT id="fgJg3T" name="SimpleEQLinux" projectType="audioplug" useAppConfig="0"
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
   <MAINGROUP id="TOtY2H" name="SimpleEQLinux">
+    <GROUP id="{9E1D03F4-7352-D344-C6B2-CCFAC80C5CD1}" name="Include">
+      <FILE id="yZ4ssl" name="Vals.h" compile="0" resource="0" file="Include/Vals.h"/>
+    </GROUP>
     <GROUP id="{4B30E80C-4C8D-55D0-E783-B078D14A0F10}" name="Source">
       <FILE id="EbXA7d" name="PluginProcessor.cpp" compile="1" resource="0"
             file="Source/PluginProcessor.cpp"/>
@@ -35,7 +38,7 @@
     <LINUX_MAKE targetFolder="Builds/LinuxMakefile">
       <CONFIGURATIONS>
         <CONFIGURATION isDebug="1" name="Debug" targetName="SimpleEQLinux" headerPath="Include"/>
-        <CONFIGURATION isDebug="0" name="Release" targetName="SimpleEQLinux"/>
+        <CONFIGURATION isDebug="0" name="Release" targetName="SimpleEQLinux" headerPath="Include"/>
       </CONFIGURATIONS>
       <MODULEPATHS>
         <MODULEPATH id="juce_audio_basics" path="../JUCE/modules"/>
@@ -53,5 +56,26 @@
         <MODULEPATH id="juce_gui_extra" path="../JUCE/modules"/>
       </MODULEPATHS>
     </LINUX_MAKE>
+    <VS2022 targetFolder="Builds/VisualStudio2022">
+      <CONFIGURATIONS>
+        <CONFIGURATION isDebug="1" name="Debug" headerPath="../../Include/"/>
+        <CONFIGURATION isDebug="0" name="Release" headerPath="Include&#10;"/>
+      </CONFIGURATIONS>
+      <MODULEPATHS>
+        <MODULEPATH id="juce_audio_basics" path="../../juce"/>
+        <MODULEPATH id="juce_audio_devices" path="../../juce"/>
+        <MODULEPATH id="juce_audio_formats" path="../../juce"/>
+        <MODULEPATH id="juce_audio_plugin_client" path="../../juce"/>
+        <MODULEPATH id="juce_audio_processors" path="../../juce"/>
+        <MODULEPATH id="juce_audio_processors_headless" path="../../juce"/>
+        <MODULEPATH id="juce_audio_utils" path="../../juce"/>
+        <MODULEPATH id="juce_core" path="../../juce"/>
+        <MODULEPATH id="juce_data_structures" path="../../juce"/>
+        <MODULEPATH id="juce_events" path="../../juce"/>
+        <MODULEPATH id="juce_graphics" path="../../juce"/>
+        <MODULEPATH id="juce_gui_basics" path="../../juce"/>
+        <MODULEPATH id="juce_gui_extra" path="../../juce"/>
+      </MODULEPATHS>
+    </VS2022>
   </EXPORTFORMATS>
 </JUCERPROJECT>
