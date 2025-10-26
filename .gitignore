@@ -1,0 +1,3 @@
+Builds/*
+!Builds/LinuxMakefile
+JuceLibraryCode/
