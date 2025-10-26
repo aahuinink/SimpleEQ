@@ -1,6 +1,6 @@
 # Top-level makefile to generate both Windows and Linux builds from WSL
 
-#Variables
+#	Variables
 PROJECT_NAME = SimpleEQLinux
 LINUX_MAKEFILE_DIR = LinuxMakefile
 export WINDOWS_SLN_PATH = "$(subst \,\\,$(shell wslpath -w "$(shell pwd)"))\\VisualStudio2022\\$(PROJECT_NAME).sln"
