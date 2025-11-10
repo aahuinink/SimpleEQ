@@ -52,6 +52,13 @@ public:
     //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
+    //==============================================================================
+    
+
+    /* @brief   Creates the audio processor parameter layout 
+     * @returns Audio processor parameter layout
+    */
+    // juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor::createParameterLayout();
 
 private:
     //==============================================================================

@@ -1,4 +1,11 @@
-Builds/LinuxMakefile/**/
-!Builds/LinuxMakefile/make_helpers/
-Builds/VisualStudio2022/**/
+Builds/**
+!Builds/**/*.sln
+!Makefile
 JuceLibraryCode/
+*.a
+juce_vst3_helper
+*.jucer
+compile_commands.json
+**/.cache/**
+*.vst3
+*.vim
