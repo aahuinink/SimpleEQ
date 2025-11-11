@@ -8,6 +8,10 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "Vals.h"
+#include "juce_audio_processors_headless/juce_audio_processors_headless.h"
+#include "juce_core/juce_core.h"
+#include <memory>
 
 //==============================================================================
 SimpleEQLinuxAudioProcessor::SimpleEQLinuxAudioProcessor()
@@ -184,11 +188,34 @@ void SimpleEQLinuxAudioProcessor::setStateInformation (const void* data, int siz
 }
 
 // Create the parameter layout
-// juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor::createParameterLayout()
-// {
-//     juce::AudioProcessorValueTreeState::ParameterLayout layout;
-//
-// }
+juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor::createParameterLayout()
+{
+    juce::AudioProcessorValueTreeState::ParameterLayout layout;
+    // add low-cut filter
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+          "LoCut Freq", 
+          "LowCut Freq", 
+          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_SKEW, 1.f), 
+          1.f));
+    
+    // add hi-cut filter
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+          "HiCut Freq", 
+          "HiCut Freq", 
+          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, 1.f, DEFAULT_SKEW), 
+          750.f));
+
+    // add peak filter
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+          "Peak Freq", 
+          "Peak Freq", 
+          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, 1.f, DEFAULT_SKEW), 
+          750.f));
+    
+    // add gain 
+    layout.add(std::make_unique<juce::AudioParameterFloat>("Peak Gain", "Peak Gain", juce::NormalisableRange<float>(MIN_GAIN, MAX_GAIN, 0.5f, DEFAULT_SKEW), 0.0f));
+    return layout;
+}
 //==============================================================================
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include "Vals.h"
+#include "juce_audio_processors/juce_audio_processors.h"
 //==============================================================================
 /**
 */
@@ -53,12 +54,16 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
     //==============================================================================
+    //
     
 
     /* @brief   Creates the audio processor parameter layout 
      * @returns Audio processor parameter layout
     */
-    // juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor::createParameterLayout();
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    // @brief   The Audio Processor value tree getStateInformation
+    juce::AudioProcessorValueTreeState apvts = juce::AudioProcessorValueTreeState(*this, nullptr, "Parameters", createParameterLayout());
 
 private:
     //==============================================================================
