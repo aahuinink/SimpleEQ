@@ -9,7 +9,6 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include "Vals.h"
 #include "juce_audio_processors/juce_audio_processors.h"
 //==============================================================================
 /**

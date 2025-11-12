@@ -15,4 +15,7 @@ windows:
 	cmd.exe /C "call $(VS_DEV_CMD_SCRIPT) && msbuild.exe $(WINDOWS_SLN_PATH) /p:Configuration=$(CONFIG)"
 
 linux:
-	$(MAKE) -C $(LINUX_MAKEFILE_DIR)
+	bear -- $(MAKE) -C $(LINUX_MAKEFILE_DIR)
+
+clean:
+	bear -- $(MAKE) clean -C $(LINUX_MAKEFILE_DIR)

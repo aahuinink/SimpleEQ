@@ -8,10 +8,13 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
-#include "Vals.h"
+#include "Params.h"
+#include "juce_audio_processors/juce_audio_processors.h"
 #include "juce_audio_processors_headless/juce_audio_processors_headless.h"
 #include "juce_core/juce_core.h"
 #include <memory>
+
+using namespace Params;
 
 //==============================================================================
 SimpleEQLinuxAudioProcessor::SimpleEQLinuxAudioProcessor()
@@ -170,7 +173,8 @@ bool SimpleEQLinuxAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* SimpleEQLinuxAudioProcessor::createEditor()
 {
-    return new SimpleEQLinuxAudioProcessorEditor (*this);
+    // return new SimpleEQLinuxAudioProcessorEditor (*this);
+    return new juce::GenericAudioProcessorEditor(*this);
 }
 
 //==============================================================================
@@ -195,25 +199,70 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor:
     layout.add(std::make_unique<juce::AudioParameterFloat>(
           "LoCut Freq", 
           "LowCut Freq", 
-          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_SKEW, 1.f), 
+          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_INTERVAL_FILTER, DEFAULT_SKEW), 
           1.f));
     
     // add hi-cut filter
     layout.add(std::make_unique<juce::AudioParameterFloat>(
           "HiCut Freq", 
           "HiCut Freq", 
-          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, 1.f, DEFAULT_SKEW), 
+          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_INTERVAL_FILTER, DEFAULT_SKEW), 
           750.f));
 
     // add peak filter
     layout.add(std::make_unique<juce::AudioParameterFloat>(
           "Peak Freq", 
           "Peak Freq", 
-          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, 1.f, DEFAULT_SKEW), 
+          juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_INTERVAL_FILTER, DEFAULT_SKEW), 
           750.f));
     
     // add gain 
-    layout.add(std::make_unique<juce::AudioParameterFloat>("Peak Gain", "Peak Gain", juce::NormalisableRange<float>(MIN_GAIN, MAX_GAIN, 0.5f, DEFAULT_SKEW), 0.0f));
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+          "Peak Gain", 
+          "Peak Gain", 
+          juce::NormalisableRange<float>(MIN_GAIN, MAX_GAIN, DEFAULT_INTERVAL_GAIN, DEFAULT_SKEW), 
+          0.0f));
+
+    // add peak filter quality
+    layout.add(std::make_unique<juce::AudioParameterFloat>(
+          "Peak Quality", 
+          "Peak Quality", 
+          juce::NormalisableRange<float>(
+            MIN_Q_FACTOR, 
+            MAX_Q_FACTOR, 
+            0.05f, 
+            DEFAULT_SKEW), 
+          0.0f));
+
+    juce::StringArray filter_slopes;
+
+    for (int i = 0; i < DEFAULT_SLOPE_COUNT; i++) {
+      juce::String str;
+      str << i * DEFAULT_SLOPE_STEP;
+      str << " dB/octave";
+      filter_slopes.add(str);
+    }
+
+    // add filter slope choices
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+          "LoCut Slope",
+          "LoCut Slope",
+          filter_slopes,
+          0
+          ));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+          "HiCut Slope", 
+          "HiCut Slope", 
+          filter_slopes, 
+          0));
+
+    layout.add(std::make_unique<juce::AudioParameterChoice>(
+            "Peak Slope", 
+            "Peak Slope", 
+            filter_slopes, 
+            0));
+
     return layout;
 }
 //==============================================================================
