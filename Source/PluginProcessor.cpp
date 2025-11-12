@@ -12,6 +12,7 @@
 #include "juce_audio_processors/juce_audio_processors.h"
 #include "juce_audio_processors_headless/juce_audio_processors_headless.h"
 #include "juce_core/juce_core.h"
+#include "juce_dsp/juce_dsp.h"
 #include <memory>
 
 using namespace Params;
@@ -102,6 +103,12 @@ void SimpleEQLinuxAudioProcessor::prepareToPlay (double sampleRate, int samplesP
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    
+    // a process spec contains information about the context in which the DSP algorithm's prepare() method is called
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = 1;   // monochain can only handle one channel at a time
 }
 
 void SimpleEQLinuxAudioProcessor::releaseResources()
@@ -136,6 +143,9 @@ bool SimpleEQLinuxAudioProcessor::isBusesLayoutSupported (const BusesLayout& lay
 }
 #endif
 
+// The processing chain requires a processing context to run audio samples through the links in the chain.
+// The context requires an Audio block. The Audio buffer may contain multiple channels, so we need to extract
+// the left and right channels and wrap them in an audio block
 void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -157,12 +167,20 @@ void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     // the samples and the outer loop is handling the channels.
     // Alternatively, you can process the samples with the channels
     // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
-    {
-        auto* channelData = buffer.getWritePointer (channel);
 
-        // ..do something to the data...
-    }
+    // wrap the buffer in an audio block and extract the channels 
+    // The audio block is a list of pointers to the channels contained in the audio buffer.
+    // Think of it like a view into that data
+    juce::dsp::AudioBlock<float> block(buffer);
+
+    auto leftBlock = block.getSingleChannelBlock(0);
+    auto rightBlock = block.getSingleChannelBlock(1);
+
+    // create processing contexts for each channel
+    // We will use the replacing type which modifies the audio block in place (i.e. getInput and getOutput return the same data)
+    juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
+    juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
+
 }
 
 //==============================================================================

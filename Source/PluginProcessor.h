@@ -69,12 +69,21 @@ private:
 
     // create some type aliases to make our DSP life easier
     //
-    // 12 dB/octave IIR filter
+    // 12 dB/octave IIR filter. Can be configured as lopass, hipass, peak, notch, etc.
     using Filter = juce::dsp::IIR::Filter<float>;
     
     // A processor chain holds a bunch of DSP instances and runs them on a sample block in sequence
+    // 
+    // up to 48dB/oct Cut filter
     // We will add all our EQ filters to this chain, up to 4 filters for a maximum of 48dB/oct
     using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
+
+    // Represent the whole mono channel chain: LoCut -> Paramentric -> HiCut
+    using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>;
+
+    // We need two mono chains to implement stereo
+    MonoChain leftChannel;
+    MonoChain rightChannel;
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleEQLinuxAudioProcessor)
