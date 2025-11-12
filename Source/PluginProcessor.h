@@ -10,6 +10,7 @@
 
 #include <JuceHeader.h>
 #include "juce_audio_processors/juce_audio_processors.h"
+#include "juce_dsp/juce_dsp.h"
 //==============================================================================
 /**
 */
@@ -65,6 +66,16 @@ public:
     juce::AudioProcessorValueTreeState apvts = juce::AudioProcessorValueTreeState(*this, nullptr, "Parameters", createParameterLayout());
 
 private:
+
+    // create some type aliases to make our DSP life easier
+    //
+    // 12 dB/octave IIR filter
+    using Filter = juce::dsp::IIR::Filter<float>;
+    
+    // A processor chain holds a bunch of DSP instances and runs them on a sample block in sequence
+    // We will add all our EQ filters to this chain, up to 4 filters for a maximum of 48dB/oct
+    using CutFilter = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter>;
+    
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleEQLinuxAudioProcessor)
 };
