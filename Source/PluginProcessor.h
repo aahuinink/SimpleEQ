@@ -9,12 +9,32 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <utility>
+#include "juce_audio_basics/juce_audio_basics.h"
 #include "juce_audio_processors/juce_audio_processors.h"
+#include "juce_core/juce_core.h"
 #include "juce_dsp/juce_dsp.h"
 //==============================================================================
 /**
+*
+*
 */
 
+// enums for settings
+enum Slope {
+    dB12,
+    dB24,
+    dB38,
+    dB48
+};
+
+// enums for indexing filters
+enum CutFilterComponents {
+    First,
+    Second,
+    Third,
+    Fourth
+};
 // extract processor values from the value tree 
 
 struct ChainSettings
@@ -96,6 +116,9 @@ private:
     // Represent the whole mono channel chain: LoCut -> Paramentric -> HiCut
     using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>;
 
+    // Represent coefficient array
+    using IIRCoeffArray = juce::ReferenceCountedArray<juce::dsp::FilterDesign<float>::IIRCoefficients>;
+
     // We need two mono chains to implement stereo
     MonoChain leftChain;
     MonoChain rightChain;
@@ -106,6 +129,42 @@ private:
         Peak,
         HiCut
     };
+
+    struct Helpers {
+
+        template <size_t numFilters>
+        static void bypassAllFilters (CutFilter& cutfilter) {
+            bypassAllFilters(cutfilter, std::make_index_sequence<numFilters>());
+        }
+
+        template <size_t numFilters>
+        static void setCutfilterCoeff (CutFilter& cutfilter, const IIRCoeffArray coeffArray) {
+            setCutfilterCoeff(cutfilter, coeffArray, std::make_index_sequence<numFilters>());
+        }
+
+    private:
+
+        template <size_t... filterIndex>
+        static void setCutfilterCoeff (CutFilter& cutfilter, const IIRCoeffArray coeffArray, std::index_sequence<filterIndex...>)
+        {
+            ([&](){
+                if (filterIndex > coeffArray.size()) {
+                    cutfilter.setBypassed<filterIndex>(true);
+                }
+                else {
+                    *cutfilter.get<filterIndex>().coefficients = *coeffArray[filterIndex];
+                    cutfilter.setBypassed<filterIndex>(false);
+                }
+            },
+            ...);
+        }
+
+        template <size_t... filterIndex>
+        static void bypassAllFilters (CutFilter& cutfilter, std::index_sequence<filterIndex...>) {
+            (cutfilter.setBypassed<filterIndex>(true), ...);
+        }
+    };
+
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleEQLinuxAudioProcessor)
 };

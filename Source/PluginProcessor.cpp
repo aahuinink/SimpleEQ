@@ -14,6 +14,7 @@
 #include "juce_audio_processors_headless/juce_audio_processors_headless.h"
 #include "juce_core/juce_core.h"
 #include "juce_dsp/juce_dsp.h"
+#include "juce_graphics/fonts/harfbuzz/hb-aat-layout-morx-table.hh"
 #include <memory>
 
 using namespace Params;
@@ -125,18 +126,33 @@ void SimpleEQLinuxAudioProcessor::prepareToPlay (double sampleRate, int samplesP
         chainSettings.peakQuality, 
         juce::Decibels::decibelsToGain(chainSettings.peakGain));
 
+    // apply filter coefficients to filters in chains
+    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+    *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+
     // for the hi and locut filters, we use a helper function to design
     // the filter coefficients based on the slope (order)
-    auto loCutCoeff = 
+    IIRCoeffArray loCutCoeff = 
         juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
                 chainSettings.loCutFreq,
                 sampleRate, 
                 (chainSettings.loCutSlope + 1) * 2);
-        
 
-    // apply filter coefficients to filters in chains
-    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
-    *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+    IIRCoeffArray hiCutCoeff = 
+        juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+                chainSettings.hiCutFreq,
+                sampleRate, 
+                (chainSettings.hiCutSlope + 1) * 2);
+    
+    auto& leftLoCut = leftChain.get<ChainPositions::LoCut>();
+    auto& rightLoCut = rightChain.get<ChainPositions::LoCut>();
+    auto& leftHiCut = leftChain.get<ChainPositions::HiCut>();
+    auto& rightHiCut = rightChain.get<ChainPositions::HiCut>();
+
+    Helpers::setCutfilterCoeff<4>(leftLoCut, loCutCoeff);
+    Helpers::setCutfilterCoeff<4>(rightLoCut, loCutCoeff);
+    Helpers::setCutfilterCoeff<4>(leftHiCut, hiCutCoeff);
+    Helpers::setCutfilterCoeff<4>(rightHiCut, hiCutCoeff);
 }
 
 void SimpleEQLinuxAudioProcessor::releaseResources()
