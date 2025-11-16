@@ -14,6 +14,21 @@
 //==============================================================================
 /**
 */
+
+// extract processor values from the value tree 
+
+struct ChainSettings
+{
+    float peakFreq { 0 }, peakGain { 0 }, peakQuality { 1.f };
+    float loCutFreq { 0 }, hiCutFreq { 0 };
+    int loCutSlope { 0 }, hiCutSlope { 0 };
+};
+
+// Takes the processor value tree state and extracts the variables we want 
+// that were set by the gui
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& avpts);
+
+
 class SimpleEQLinuxAudioProcessor  : public juce::AudioProcessor
 {
 public:
@@ -85,6 +100,12 @@ private:
     MonoChain leftChain;
     MonoChain rightChain;
     
+    enum ChainPositions
+    {
+        LoCut,
+        Peak,
+        HiCut
+    };
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleEQLinuxAudioProcessor)
 };

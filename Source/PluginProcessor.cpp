@@ -9,6 +9,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 #include "Params.h"
+#include "juce_audio_basics/juce_audio_basics.h"
 #include "juce_audio_processors/juce_audio_processors.h"
 #include "juce_audio_processors_headless/juce_audio_processors_headless.h"
 #include "juce_core/juce_core.h"
@@ -16,6 +17,7 @@
 #include <memory>
 
 using namespace Params;
+
 
 //==============================================================================
 SimpleEQLinuxAudioProcessor::SimpleEQLinuxAudioProcessor()
@@ -112,6 +114,29 @@ void SimpleEQLinuxAudioProcessor::prepareToPlay (double sampleRate, int samplesP
 
     leftChain.prepare(spec);
     rightChain.prepare(spec);
+
+    ChainSettings chainSettings = getChainSettings(apvts);
+    
+    // calculate filter coefficients
+    // these are allocated to the heap (!!) for some stupid reason
+    auto peakCoeff = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        sampleRate, 
+        chainSettings.peakFreq, 
+        chainSettings.peakQuality, 
+        juce::Decibels::decibelsToGain(chainSettings.peakGain));
+
+    // for the hi and locut filters, we use a helper function to design
+    // the filter coefficients based on the slope (order)
+    auto loCutCoeff = 
+        juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+                chainSettings.loCutFreq,
+                sampleRate, 
+                (chainSettings.loCutSlope + 1) * 2);
+        
+
+    // apply filter coefficients to filters in chains
+    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+    *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
 }
 
 void SimpleEQLinuxAudioProcessor::releaseResources()
@@ -164,6 +189,28 @@ void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
+    ChainSettings chainSettings = getChainSettings(apvts);
+
+    // calculate filter coefficients
+    // these are allocated to the heap (!!) for some stupid reason
+    auto peakCoeff = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        getSampleRate(), 
+        chainSettings.peakFreq, 
+        chainSettings.peakQuality, 
+        juce::Decibels::decibelsToGain(chainSettings.peakGain));
+
+    auto loCutCoeff = juce::dsp::IIR::Coefficients<float>::makeHighPass(
+        getSampleRate(), 
+        chainSettings.loCutFreq);
+
+    auto hiCutCoeff = 
+      juce::dsp::IIR::Coefficients<float>::makeLowPass(
+          getSampleRate(), 
+          chainSettings.hiCutFreq);
+    
+    // apply filter coefficients to filters in chains
+    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+    *rightChain.get<ChainPositions::Peak>().coefficients = *loCutCoeff;
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
     // Make sure to reset the state if your inner loop is processing
@@ -220,36 +267,36 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor:
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
     // add low-cut filter
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-          "LoCut Freq", 
-          "LowCut Freq", 
+          PID_LOCUT_FREQ, 
+          PID_LOCUT_FREQ, 
           juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_INTERVAL_FILTER, DEFAULT_SKEW), 
           1.f));
     
     // add hi-cut filter
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-          "HiCut Freq", 
-          "HiCut Freq", 
+          PID_HICUT_FREQ, 
+          PID_HICUT_FREQ, 
           juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_INTERVAL_FILTER, DEFAULT_SKEW), 
           750.f));
 
     // add peak filter
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-          "Peak Freq", 
-          "Peak Freq", 
+          PID_PEAK_FREQ, 
+          PID_PEAK_FREQ, 
           juce::NormalisableRange<float>(FREQ_20_HZ, FREQ_20000_HZ, DEFAULT_INTERVAL_FILTER, DEFAULT_SKEW), 
           750.f));
     
     // add gain 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-          "Peak Gain", 
-          "Peak Gain", 
+          PID_PEAK_GAIN, 
+          PID_PEAK_GAIN, 
           juce::NormalisableRange<float>(MIN_GAIN, MAX_GAIN, DEFAULT_INTERVAL_GAIN, DEFAULT_SKEW), 
           0.0f));
 
     // add peak filter quality
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-          "Peak Quality", 
-          "Peak Quality", 
+          PID_PEAK_QUALITY, 
+          PID_PEAK_QUALITY, 
           juce::NormalisableRange<float>(
             MIN_Q_FACTOR, 
             MAX_Q_FACTOR, 
@@ -268,26 +315,43 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor:
 
     // add filter slope choices
     layout.add(std::make_unique<juce::AudioParameterChoice>(
-          "LoCut Slope",
-          "LoCut Slope",
+          PID_LOCUT_SLOPE,
+          PID_LOCUT_SLOPE,
           filter_slopes,
           0
           ));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
-          "HiCut Slope", 
-          "HiCut Slope", 
+          PID_HICUT_SLOPE, 
+          PID_HICUT_SLOPE, 
           filter_slopes, 
           0));
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
-            "Peak Slope", 
-            "Peak Slope", 
+            PID_PEAK_SLOPE, 
+            PID_PEAK_SLOPE, 
             filter_slopes, 
             0));
 
     return layout;
 }
+
+
+ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
+{
+    ChainSettings settings;
+    
+    settings.loCutFreq = apvts.getRawParameterValue(PID_LOCUT_FREQ)->load();
+    settings.hiCutFreq = apvts.getRawParameterValue(PID_HICUT_FREQ)->load();
+    settings.peakFreq = apvts.getRawParameterValue(PID_PEAK_FREQ)->load();
+    settings.loCutSlope = apvts.getRawParameterValue(PID_LOCUT_SLOPE)->load();
+    settings.hiCutSlope = apvts.getRawParameterValue(PID_HICUT_SLOPE)->load();
+    settings.peakGain = apvts.getRawParameterValue(PID_PEAK_GAIN)->load();
+    settings.peakQuality = apvts.getRawParameterValue(PID_PEAK_QUALITY)->load();
+
+    return settings;
+}
+
 //==============================================================================
 // This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
