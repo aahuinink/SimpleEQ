@@ -82,8 +82,8 @@ private:
     using MonoChain = juce::dsp::ProcessorChain<CutFilter, Filter, CutFilter>;
 
     // We need two mono chains to implement stereo
-    MonoChain leftChannel;
-    MonoChain rightChannel;
+    MonoChain leftChain;
+    MonoChain rightChain;
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SimpleEQLinuxAudioProcessor)

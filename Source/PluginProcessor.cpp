@@ -109,6 +109,9 @@ void SimpleEQLinuxAudioProcessor::prepareToPlay (double sampleRate, int samplesP
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = 1;   // monochain can only handle one channel at a time
+
+    leftChain.prepare(spec);
+    rightChain.prepare(spec);
 }
 
 void SimpleEQLinuxAudioProcessor::releaseResources()
@@ -180,7 +183,9 @@ void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     // We will use the replacing type which modifies the audio block in place (i.e. getInput and getOutput return the same data)
     juce::dsp::ProcessContextReplacing<float> leftContext(leftBlock);
     juce::dsp::ProcessContextReplacing<float> rightContext(rightBlock);
-
+    
+    leftChain.process(leftContext);
+    rightChain.process(rightContext);
 }
 
 //==============================================================================
