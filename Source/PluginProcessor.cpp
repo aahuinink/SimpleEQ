@@ -13,8 +13,8 @@
 #include "juce_audio_processors/juce_audio_processors.h"
 #include "juce_audio_processors_headless/juce_audio_processors_headless.h"
 #include "juce_core/juce_core.h"
+#include "juce_core/system/juce_PlatformDefs.h"
 #include "juce_dsp/juce_dsp.h"
-#include "juce_graphics/fonts/harfbuzz/hb-aat-layout-morx-table.hh"
 #include <memory>
 
 using namespace Params;
@@ -205,28 +205,74 @@ void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    ChainSettings chainSettings = getChainSettings(apvts);
+    ChainSettings newChainSettings = getChainSettings(apvts);
 
-    // calculate filter coefficients
-    // these are allocated to the heap (!!) for some stupid reason
-    auto peakCoeff = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-        getSampleRate(), 
-        chainSettings.peakFreq, 
-        chainSettings.peakQuality, 
-        juce::Decibels::decibelsToGain(chainSettings.peakGain));
-
-    auto loCutCoeff = juce::dsp::IIR::Coefficients<float>::makeHighPass(
-        getSampleRate(), 
-        chainSettings.loCutFreq);
-
-    auto hiCutCoeff = 
-      juce::dsp::IIR::Coefficients<float>::makeLowPass(
-          getSampleRate(), 
-          chainSettings.hiCutFreq);
+    // if peak settings have changed...
+    DBG("New chain settings");
+    DBG("Low Cut Freq: " << newChainSettings.loCutFreq);
+    DBG("Low Cut Slope: " << newChainSettings.loCutSlope);
+    DBG("High Cut Freq: " << newChainSettings.hiCutFreq);
+    DBG("High Cut Slope: " << newChainSettings.hiCutSlope);
     
-    // apply filter coefficients to filters in chains
-    *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
-    *rightChain.get<ChainPositions::Peak>().coefficients = *loCutCoeff;
+    if (
+            (newChainSettings.peakFreq != currentChainSettings.peakFreq) ||
+            (newChainSettings.peakQuality != currentChainSettings.peakQuality) ||
+            (newChainSettings.peakGain != currentChainSettings.peakGain)
+       )
+    {
+        auto peakCoeff = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+            getSampleRate(), 
+            newChainSettings.peakFreq, 
+            newChainSettings.peakQuality, 
+            juce::Decibels::decibelsToGain(newChainSettings.peakGain));
+
+        // apply filter coefficients to filters in chains
+        *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+        *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+    }
+    
+    // if locut settings have changed...
+    if (
+            (newChainSettings.loCutFreq != currentChainSettings.loCutFreq) ||
+            (newChainSettings.loCutSlope != currentChainSettings.loCutSlope)
+       )
+    {
+        DBG("Configuring Lo Cut filter");
+        // for the hi and locut filters, we use a helper function to design
+        // the filter coefficients based on the slope (order)
+        IIRCoeffArray loCutCoeff = 
+            juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+                    newChainSettings.loCutFreq,
+                    getSampleRate(), 
+                    (newChainSettings.loCutSlope + 1) * 2);
+
+        auto& leftLoCut = leftChain.get<ChainPositions::LoCut>();
+        auto& rightLoCut = rightChain.get<ChainPositions::LoCut>();
+
+        Helpers::setCutfilterCoeff<4>(leftLoCut, loCutCoeff);
+        Helpers::setCutfilterCoeff<4>(rightLoCut, loCutCoeff);
+    }
+    
+    // if hicut settings have changed...
+    if (
+            (newChainSettings.hiCutFreq != currentChainSettings.hiCutFreq) ||
+            (newChainSettings.hiCutSlope != currentChainSettings.hiCutSlope)
+       )
+    {
+        DBG("Configuring Hi Cut filter");
+        IIRCoeffArray hiCutCoeff = 
+            juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+                    newChainSettings.hiCutFreq,
+                    getSampleRate(), 
+                    (newChainSettings.hiCutSlope + 1) * 2);
+
+        auto& leftHiCut = leftChain.get<ChainPositions::HiCut>();
+        auto& rightHiCut = rightChain.get<ChainPositions::HiCut>();
+
+        Helpers::setCutfilterCoeff<4>(leftHiCut, hiCutCoeff);
+        Helpers::setCutfilterCoeff<4>(rightHiCut, hiCutCoeff);
+    }
+    
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
     // Make sure to reset the state if your inner loop is processing
@@ -249,6 +295,8 @@ void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     
     leftChain.process(leftContext);
     rightChain.process(rightContext);
+
+    currentChainSettings = newChainSettings;
 }
 
 //==============================================================================
@@ -322,7 +370,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout SimpleEQLinuxAudioProcessor:
 
     juce::StringArray filter_slopes;
 
-    for (int i = 0; i < DEFAULT_SLOPE_COUNT; i++) {
+    for (int i = 1; i < DEFAULT_SLOPE_COUNT+1; i++) {
       juce::String str;
       str << i * DEFAULT_SLOPE_STEP;
       str << " dB/octave";
@@ -366,6 +414,27 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     settings.peakQuality = apvts.getRawParameterValue(PID_PEAK_QUALITY)->load();
 
     return settings;
+}
+
+template <size_t... filterIndex>
+void SimpleEQLinuxAudioProcessor::Helpers::setCutfilterCoeff (
+    CutFilter& cutfilter, 
+    const IIRCoeffArray coeffArray, 
+    std::index_sequence<filterIndex...>)
+{
+    const int arraysize = coeffArray.size();
+    // use a lambda for pack expansion
+    ([&](){
+        constexpr int filterNum = filterIndex + 1;
+        if (filterNum > arraysize) {
+            cutfilter.setBypassed<filterIndex>(true);
+        }
+        else {
+            *cutfilter.get<filterIndex>().coefficients = *coeffArray[filterIndex];
+            cutfilter.setBypassed<filterIndex>(false);
+        }
+    },
+    ...);
 }
 
 //==============================================================================

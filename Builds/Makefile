@@ -13,9 +13,13 @@ export CONFIG
 windows:
 	@echo "Building Solution located in $(WINDOWS_SLN_PATH)"
 	cmd.exe /C "call $(VS_DEV_CMD_SCRIPT) && msbuild.exe $(WINDOWS_SLN_PATH) /p:Configuration=$(CONFIG)"
-
 linux:
 	bear -- $(MAKE) -C $(LINUX_MAKEFILE_DIR)
+
+clean_windows:
+	rm -rf VisualStudio2022/x64
+	cmd.exe /C "call $(VS_DEV_CMD_SCRIPT) && msbuild.exe $(WINDOWS_SLN_PATH) /t:Clean"
+	
 
 clean:
 	bear -- $(MAKE) clean -C $(LINUX_MAKEFILE_DIR)

@@ -97,7 +97,7 @@ public:
     */
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    // @brief   The Audio Processor value tree getStateInformation
+    // @brief   The Audio Processor value tree state
     juce::AudioProcessorValueTreeState apvts = juce::AudioProcessorValueTreeState(*this, nullptr, "Parameters", createParameterLayout());
 
 private:
@@ -130,6 +130,8 @@ private:
         HiCut
     };
 
+    ChainSettings currentChainSettings;
+
     struct Helpers {
 
         template <size_t numFilters>
@@ -145,19 +147,7 @@ private:
     private:
 
         template <size_t... filterIndex>
-        static void setCutfilterCoeff (CutFilter& cutfilter, const IIRCoeffArray coeffArray, std::index_sequence<filterIndex...>)
-        {
-            ([&](){
-                if (filterIndex > coeffArray.size()) {
-                    cutfilter.setBypassed<filterIndex>(true);
-                }
-                else {
-                    *cutfilter.get<filterIndex>().coefficients = *coeffArray[filterIndex];
-                    cutfilter.setBypassed<filterIndex>(false);
-                }
-            },
-            ...);
-        }
+        static void setCutfilterCoeff (CutFilter& cutfilter, const IIRCoeffArray coeffArray, std::index_sequence<filterIndex...>);
 
         template <size_t... filterIndex>
         static void bypassAllFilters (CutFilter& cutfilter, std::index_sequence<filterIndex...>) {
