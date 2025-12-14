@@ -4,7 +4,6 @@ Builds/**
 JuceLibraryCode/
 *.a
 juce_vst3_helper
-*.jucer
 compile_commands.json
 **/.cache/**
 *.vst3
