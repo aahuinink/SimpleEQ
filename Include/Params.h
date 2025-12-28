@@ -29,4 +29,6 @@ namespace Params
   inline constexpr auto PID_PEAK_SLOPE = "Peak Slope";
   inline constexpr auto PID_PEAK_QUALITY = "Peak Quality";
   inline constexpr auto PID_PEAK_GAIN = "Peak Gain";
+  // magin numbers
+  constexpr auto NUM_CUTFILTER_STAGES = 4;
 }

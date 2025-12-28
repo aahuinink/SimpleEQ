@@ -46,7 +46,7 @@ struct ChainSettings
 
 // Takes the processor value tree state and extracts the variables we want 
 // that were set by the gui
-ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& avpts);
+ChainSettings getChainSettings (juce::AudioProcessorValueTreeState& avpts);
 
 
 class SimpleEQLinuxAudioProcessor  : public juce::AudioProcessor
@@ -132,27 +132,26 @@ private:
 
     ChainSettings currentChainSettings;
 
+    void updateFilters();
+
     struct Helpers {
 
-        template <size_t numFilters>
-        static void bypassAllFilters (CutFilter& cutfilter) {
-            bypassAllFilters(cutfilter, std::make_index_sequence<numFilters>());
-        }
-
+        static void bypassAllFilters (CutFilter& cutfilter);
+        
         template <size_t numFilters>
         static void setCutfilterCoeff (CutFilter& cutfilter, const IIRCoeffArray coeffArray) {
-            setCutfilterCoeff(cutfilter, coeffArray, std::make_index_sequence<numFilters>());
+            setSequentialFilterCoeffs(cutfilter, coeffArray, std::make_index_sequence<numFilters>() );
         }
-
+    
     private:
 
-        template <size_t... filterIndex>
-        static void setCutfilterCoeff (CutFilter& cutfilter, const IIRCoeffArray coeffArray, std::index_sequence<filterIndex...>);
-
-        template <size_t... filterIndex>
-        static void bypassAllFilters (CutFilter& cutfilter, std::index_sequence<filterIndex...>) {
-            (cutfilter.setBypassed<filterIndex>(true), ...);
-        }
+        template <size_t... filterIndicies>
+        static void setSequentialFilterCoeffs (
+                CutFilter& cutfilter,
+                const IIRCoeffArray coeffArray,
+                std::index_sequence<filterIndicies...>
+                );
+        
     };
 
     //==============================================================================

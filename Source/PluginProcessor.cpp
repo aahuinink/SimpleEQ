@@ -15,7 +15,9 @@
 #include "juce_core/juce_core.h"
 #include "juce_core/system/juce_PlatformDefs.h"
 #include "juce_dsp/juce_dsp.h"
+#include <cstddef>
 #include <memory>
+#include <utility>
 
 using namespace Params;
 
@@ -205,74 +207,10 @@ void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    ChainSettings newChainSettings = getChainSettings(apvts);
 
-    // if peak settings have changed...
-    DBG("New chain settings");
-    DBG("Low Cut Freq: " << newChainSettings.loCutFreq);
-    DBG("Low Cut Slope: " << newChainSettings.loCutSlope);
-    DBG("High Cut Freq: " << newChainSettings.hiCutFreq);
-    DBG("High Cut Slope: " << newChainSettings.hiCutSlope);
-    
-    if (
-            (newChainSettings.peakFreq != currentChainSettings.peakFreq) ||
-            (newChainSettings.peakQuality != currentChainSettings.peakQuality) ||
-            (newChainSettings.peakGain != currentChainSettings.peakGain)
-       )
-    {
-        auto peakCoeff = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-            getSampleRate(), 
-            newChainSettings.peakFreq, 
-            newChainSettings.peakQuality, 
-            juce::Decibels::decibelsToGain(newChainSettings.peakGain));
+    // Update the filters based on the gui input
+    updateFilters();
 
-        // apply filter coefficients to filters in chains
-        *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
-        *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
-    }
-    
-    // if locut settings have changed...
-    if (
-            (newChainSettings.loCutFreq != currentChainSettings.loCutFreq) ||
-            (newChainSettings.loCutSlope != currentChainSettings.loCutSlope)
-       )
-    {
-        DBG("Configuring Lo Cut filter");
-        // for the hi and locut filters, we use a helper function to design
-        // the filter coefficients based on the slope (order)
-        IIRCoeffArray loCutCoeff = 
-            juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
-                    newChainSettings.loCutFreq,
-                    getSampleRate(), 
-                    (newChainSettings.loCutSlope + 1) * 2);
-
-        auto& leftLoCut = leftChain.get<ChainPositions::LoCut>();
-        auto& rightLoCut = rightChain.get<ChainPositions::LoCut>();
-
-        Helpers::setCutfilterCoeff<4>(leftLoCut, loCutCoeff);
-        Helpers::setCutfilterCoeff<4>(rightLoCut, loCutCoeff);
-    }
-    
-    // if hicut settings have changed...
-    if (
-            (newChainSettings.hiCutFreq != currentChainSettings.hiCutFreq) ||
-            (newChainSettings.hiCutSlope != currentChainSettings.hiCutSlope)
-       )
-    {
-        DBG("Configuring Hi Cut filter");
-        IIRCoeffArray hiCutCoeff = 
-            juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
-                    newChainSettings.hiCutFreq,
-                    getSampleRate(), 
-                    (newChainSettings.hiCutSlope + 1) * 2);
-
-        auto& leftHiCut = leftChain.get<ChainPositions::HiCut>();
-        auto& rightHiCut = rightChain.get<ChainPositions::HiCut>();
-
-        Helpers::setCutfilterCoeff<4>(leftHiCut, hiCutCoeff);
-        Helpers::setCutfilterCoeff<4>(rightHiCut, hiCutCoeff);
-    }
-    
     // This is the place where you'd normally do the guts of your plugin's
     // audio processing...
     // Make sure to reset the state if your inner loop is processing
@@ -296,7 +234,6 @@ void SimpleEQLinuxAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer
     leftChain.process(leftContext);
     rightChain.process(rightContext);
 
-    currentChainSettings = newChainSettings;
 }
 
 //==============================================================================
@@ -314,15 +251,18 @@ juce::AudioProcessorEditor* SimpleEQLinuxAudioProcessor::createEditor()
 //==============================================================================
 void SimpleEQLinuxAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    // save to memory block using output stream 
+    juce::MemoryOutputStream mos(destData, true);
+    apvts.state.writeToStream(mos);
 }
 
 void SimpleEQLinuxAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    auto tree = juce::ValueTree::readFromData(data, sizeInBytes);
+    if ( tree.isValid() ) {
+        apvts.replaceState(tree);
+        updateFilters();
+    }
 }
 
 // Create the parameter layout
@@ -416,25 +356,92 @@ ChainSettings getChainSettings(juce::AudioProcessorValueTreeState& apvts)
     return settings;
 }
 
-template <size_t... filterIndex>
-void SimpleEQLinuxAudioProcessor::Helpers::setCutfilterCoeff (
+void SimpleEQLinuxAudioProcessor::updateFilters() {
+
+    ChainSettings newChainSettings = getChainSettings(apvts);
+
+    // check if peak filter settings have changed
+    if (
+            (newChainSettings.peakFreq != currentChainSettings.peakFreq) ||
+            (newChainSettings.peakQuality != currentChainSettings.peakQuality) ||
+            (newChainSettings.peakGain != currentChainSettings.peakGain)
+       )
+    {
+        auto peakCoeff = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+            getSampleRate(), 
+            newChainSettings.peakFreq, 
+            newChainSettings.peakQuality, 
+            juce::Decibels::decibelsToGain(newChainSettings.peakGain));
+
+        // apply filter coefficients to filters in chains
+        *leftChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+        *rightChain.get<ChainPositions::Peak>().coefficients = *peakCoeff;
+    }
+    
+    // if locut settings have changed...
+    if (
+            (newChainSettings.loCutFreq != currentChainSettings.loCutFreq) ||
+            (newChainSettings.loCutSlope != currentChainSettings.loCutSlope)
+       )
+    {
+        // for the hi and locut filters, we use a helper function to design
+        // the filter coefficients based on the slope (order)
+        IIRCoeffArray loCutCoeff = 
+            juce::dsp::FilterDesign<float>::designIIRHighpassHighOrderButterworthMethod(
+                    newChainSettings.loCutFreq,
+                    getSampleRate(), 
+                    (newChainSettings.loCutSlope + 1) * 2);
+
+        auto& leftLoCut = leftChain.get<ChainPositions::LoCut>();
+        auto& rightLoCut = rightChain.get<ChainPositions::LoCut>();
+
+        Helpers::setCutfilterCoeff<NUM_CUTFILTER_STAGES> ( leftLoCut, loCutCoeff );
+        Helpers::setCutfilterCoeff<NUM_CUTFILTER_STAGES> ( rightLoCut, loCutCoeff );
+    }
+    
+    // if hicut settings have changed...
+    if (
+            (newChainSettings.hiCutFreq != currentChainSettings.hiCutFreq) ||
+            (newChainSettings.hiCutSlope != currentChainSettings.hiCutSlope)
+       )
+    {
+        IIRCoeffArray hiCutCoeff = 
+            juce::dsp::FilterDesign<float>::designIIRLowpassHighOrderButterworthMethod(
+                    newChainSettings.hiCutFreq,
+                    getSampleRate(), 
+                    (newChainSettings.hiCutSlope + 1) * 2);
+
+        auto& leftHiCut = leftChain.get<ChainPositions::HiCut>();
+        auto& rightHiCut = rightChain.get<ChainPositions::HiCut>();
+
+        Helpers::setCutfilterCoeff<NUM_CUTFILTER_STAGES>(leftHiCut, hiCutCoeff);
+        Helpers::setCutfilterCoeff<NUM_CUTFILTER_STAGES>(rightHiCut, hiCutCoeff);
+    }
+
+    currentChainSettings = newChainSettings;
+
+}
+
+// @brief       Sets the filter coefficients of a sequential filter using a variadic fold expression because of the clunky get() syntax
+template<size_t... filterIndicies>
+void SimpleEQLinuxAudioProcessor::Helpers::setSequentialFilterCoeffs (
     CutFilter& cutfilter, 
-    const IIRCoeffArray coeffArray, 
-    std::index_sequence<filterIndex...>)
+    const IIRCoeffArray coeffArray,
+    std::index_sequence<filterIndicies...>
+    )
 {
-    const int arraysize = coeffArray.size();
-    // use a lambda for pack expansion
-    ([&](){
-        constexpr int filterNum = filterIndex + 1;
-        if (filterNum > arraysize) {
-            cutfilter.setBypassed<filterIndex>(true);
+    const auto maxActiveFilterIndex = coeffArray.size() - 1;
+    
+    ([&]
+     {
+        if ( filterIndicies > maxActiveFilterIndex ) {
+            cutfilter.setBypassed<filterIndicies>(true);
+        } else {
+            *cutfilter.get<filterIndicies>().coefficients = *coeffArray[filterIndicies];
+            cutfilter.setBypassed<filterIndicies>(false);
         }
-        else {
-            *cutfilter.get<filterIndex>().coefficients = *coeffArray[filterIndex];
-            cutfilter.setBypassed<filterIndex>(false);
-        }
-    },
-    ...);
+     }
+     (), ...);
 }
 
 //==============================================================================
